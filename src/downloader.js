@@ -25,15 +25,23 @@ export class PublicInstagramDownloader {
     // Tracking links and plural paths must use the same public request and retry policy.
     const {url}=normalizeReelUrl(input);
     const deadline=this.now()+60000;
-    const fetcher=(target,options)=>{
+    const observations=[];
+    const fetcher=async(target,options)=>{
       const remaining=deadline-this.now();
       if(remaining<=0)throw failure();
-      return this.fetcher(target,{...options,signal:AbortSignal.timeout(Math.min(25000,remaining))});
+      const kind=target.includes('/embed/')?'embed':target.includes('/api/graphql')?'metadata':'page';
+      try{
+        const response=await this.fetcher(target,{...options,signal:AbortSignal.timeout(Math.min(25000,remaining))});
+        observations.push({kind,status:response.status});
+        return response;
+      }catch{observations.push({kind,status:0});throw failure();}
     };
     for(let attempt=0;attempt<2;attempt++){
       if(attempt){if(deadline-this.now()<=1500)break;await this.sleep(1500);}
       try{return await this.downloadOnce(url,fetcher);}catch{if(this.now()>=deadline)break;}
     }
+    // Only fixed method names and HTTP status codes; no URLs, response bodies or credentials.
+    console.warn(JSON.stringify({event:'public_download_unavailable',requests:observations}));
     throw failure();
   }
   async downloadOnce(input,fetcher) {
