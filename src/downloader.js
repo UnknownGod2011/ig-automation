@@ -20,13 +20,28 @@ export function extractPublicVideo(data, expectedShortcode) {
 // Logged-out metadata extraction adapted from yt-dlp's maintained Instagram extractor.
 // No account credentials, session cookies, or login automation are used.
 export class PublicInstagramDownloader {
-  constructor(fetcher = (...args)=>fetch(...args)) { this.fetcher = fetcher; }
+  constructor(fetcher = (...args)=>fetch(...args), {now=()=>Date.now(),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))} = {}) { this.fetcher = fetcher; this.now=now; this.sleep=sleep; }
   async download(input) {
+    // Tracking links and plural paths must use the same public request and retry policy.
+    const {url}=normalizeReelUrl(input);
+    const deadline=this.now()+60000;
+    const fetcher=(target,options)=>{
+      const remaining=deadline-this.now();
+      if(remaining<=0)throw failure();
+      return this.fetcher(target,{...options,signal:AbortSignal.timeout(Math.min(25000,remaining))});
+    };
+    for(let attempt=0;attempt<2;attempt++){
+      if(attempt){if(deadline-this.now()<=1500)break;await this.sleep(1500);}
+      try{return await this.downloadOnce(url,fetcher);}catch{if(this.now()>=deadline)break;}
+    }
+    throw failure();
+  }
+  async downloadOnce(input,fetcher) {
     const { shortcode } = normalizeReelUrl(input);
     const target = `https://www.instagram.com/p/${shortcode}/`;
     let html = '';
     try {
-      const response = await this.fetcher(target, { headers, redirect: 'manual', signal: AbortSignal.timeout(25000) });
+      const response = await fetcher(target, { headers, redirect: 'manual' });
       if (response.ok) html = await response.text();
       // Embedded public metadata is preferable to an additional API call.
       for (const script of html.matchAll(/<script\b[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/g)) {
@@ -47,11 +62,11 @@ export class PublicInstagramDownloader {
       ];
       for (const body of requests) {
         try {
-          const r = await this.fetcher('https://www.instagram.com/api/graphql', {method:'POST', headers: {...headers, 'Content-Type':'application/x-www-form-urlencoded', 'X-FB-LSD':lsd, 'X-FB-Friendly-Name':body.fb_api_req_friendly_name}, body:new URLSearchParams({...body,lsd,fb_api_caller_class:'RelayModern',server_timestamps:'true'}), redirect:'manual',signal:AbortSignal.timeout(25000)});
+          const r = await fetcher('https://www.instagram.com/api/graphql', {method:'POST', headers: {...headers, 'Content-Type':'application/x-www-form-urlencoded', 'X-FB-LSD':lsd, 'X-FB-Friendly-Name':body.fb_api_req_friendly_name}, body:new URLSearchParams({...body,lsd,fb_api_caller_class:'RelayModern',server_timestamps:'true'}), redirect:'manual'});
           if (r.ok) { const found = extractPublicVideo(await r.json(),shortcode); if (found) return found; }
         } catch { /* Try the next public-only extraction method. */ }
       }
-      const embed = await this.fetcher(`${target}embed/captioned/`, {headers:{'User-Agent':'Mozilla/5.0'},redirect:'manual',signal:AbortSignal.timeout(25000)});
+      const embed = await fetcher(`${target}embed/captioned/`, {headers:{'User-Agent':'Mozilla/5.0'},redirect:'manual'});
       if (embed.ok) {
         const text = await embed.text();
         const context = text.match(/"contextJSON":("(?:\\.|[^"\\])*")/);
