@@ -1,12 +1,12 @@
 # Reel Reposter
 
-A private single-user utility. Paste a public Instagram Reel (or single video `/p/` link), click **POST REEL**, and publish it with the fixed caption `FOLLOW FOR MORE!`.
+A shared-passcode utility for one destination Instagram account. Enter the shared passcode to unlock; no ChatGPT sign-in is required. Paste a public Instagram Reel (or single video `/p/` link), click **POST REEL**, and publish it with the fixed caption `FOLLOW FOR MORE!`.
 
 ## Hosting
 
-Current private deployment: https://reel-reposter-nubloom.nubloomtech.chatgpt.site, owned by the user's Nubloom account. The tracked hosting manifests identify this deployment and its video transport. The earlier unpublished Sites in the other account are not used.
+Current passcode-protected deployment: https://reel-reposter-nubloom.nubloomtech.chatgpt.site, owned by the user's Nubloom account. The tracked hosting manifests identify this deployment and its video transport. The earlier unpublished Sites in the other account are not used.
 
-The interface and all publishing endpoints run on an owner-private ChatGPT Site. Sites D1 stores small job records and Sites R2 holds temporary MP4 transport objects. An additional Sites Worker in `transport/` serves only unguessable temporary video URLs to Meta. It exposes no interface or administration. This relay is required because owner-private Sites require authentication on every route and Meta's URL downloader cannot send the Sites service header. The relay forwards only a narrowly validated video path to the fixed private Site origin, using its server-side Sites service credential. No Instagram credentials are shared with the relay.
+The interface and all publishing endpoints run on an public ChatGPT Site protected by server-verified passcode sessions. Sites D1 stores small job records and Sites R2 holds temporary MP4 transport objects. An additional Sites Worker in `transport/` serves only unguessable temporary video URLs to Meta. It exposes no interface or administration. The relay is retained from the initial private deployment and continues to serve only temporary video paths. The relay forwards only a narrowly validated video path to the fixed private Site origin, using its server-side Sites service credential. No Instagram credentials are shared with the relay.
 
 The production source is maintained in this Git repository and mirrored to the Sites-managed source repositories using the official Sites workflow. `.openai/hosting.json` contains only Site identity and logical storage bindings.
 
@@ -47,3 +47,6 @@ The automated suite uses an actual local D1 database and R2 object store through
 - [Cobalt API](https://github.com/imputnet/cobalt/blob/main/docs/api.md) — hosted instances require the instance owner's permission; no protected public instance is used.
 - [yt-dlp Instagram extractor](https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/instagram.py)
 - [Suggested downloader investigated](https://github.com/Okramjimmy/Instagram-reels-downloader) — its hardcoded web request tokens were unsuitable; no account cookies or login automation were adopted.
+
+Shared access uses secret APP_PASSCODE and AUTH_SESSION_SECRET values. All posting endpoints require a signed eight-hour HttpOnly/Secure/SameSite session. Five incorrect attempts per address per fifteen-minute window are allowed. Maintenance requires the separate MAINTENANCE_TOKEN secret, which is set from native Sites service access and is never granted by a normal passcode session.
+

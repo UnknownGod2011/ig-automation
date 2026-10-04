@@ -24,3 +24,7 @@ export const tokenState = sqliteTable('token_state', {
   fingerprint: text('fingerprint').notNull(), expiresAt: integer('expires_at').notNull(),
   refreshedAt: integer('refreshed_at').notNull(),
 });
+export const accessAttempts = sqliteTable('access_attempts', {
+  id: text('id').primaryKey(), window: integer('window').notNull(),
+  attempts: integer('attempts').notNull(), updatedAt: integer('updated_at').notNull(),
+});

@@ -1,6 +1,8 @@
 import {page} from './page.js';
 import {Reposter} from './jobs.js';
 import {AppError,safeError} from './errors.js';
+import {authenticated,login,sameSecret} from './auth.js';
+import {accessPage} from './access-page.js';
 const response=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 export default {
   async fetch(request,env){
@@ -8,7 +10,8 @@ export default {
     try{
       if(request.method==='GET'&&url.pathname==='/'){
         const nonce=crypto.randomUUID();
-        return new Response(page(nonce),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':`default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; connect-src 'self'; form-action 'self'; base-uri 'none'`}});
+        const html=await authenticated(request,env)?page(nonce):accessPage(nonce);
+        return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':`default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`}});
       }
       const video=/^\/transport\/([0-9a-f-]{36})\/([0-9a-f]{64})\/source\.mp4$/.exec(url.pathname);
       if(video&&['GET','HEAD'].includes(request.method)){
@@ -22,12 +25,17 @@ export default {
       }
       if(!url.pathname.startsWith('/api/')||request.method!=='POST')return new Response('Not found',{status:404});
       const origin=request.headers.get('Origin');
-      if(origin && origin!==(env.SITE_ORIGIN??url.origin))throw new AppError('This request must come from your private Site.','validation',403);
-      if(request.headers.get('Sec-Fetch-Site')==='cross-site')throw new AppError('This request must come from your private Site.','validation',403);
+      if(origin && origin!==(env.SITE_ORIGIN??url.origin))throw new AppError('This request must come from this Site.','validation',403);
+      if(request.headers.get('Sec-Fetch-Site')==='cross-site')throw new AppError('This request must come from this Site.','validation',403);
       if(!/^application\/json(?:;|$)/i.test(request.headers.get('Content-Type')??''))throw new AppError('Use a JSON request.','validation',415);
       if(Number(request.headers.get('Content-Length'))>4096)throw new AppError('Request is too large.','validation',413);
+      if(url.pathname==='/api/access')return await login(request,env);
+      if(url.pathname==='/api/maintenance'){
+        if(!await sameSecret(request.headers.get('X-Reposter-Maintenance'),env.MAINTENANCE_TOKEN))throw new AppError('Maintenance access denied. Send the Site service token in X-Reposter-Maintenance.','access',401);
+        const result=await app.maintenance();await app.client();return response(result);
+      }
+      if(!await authenticated(request,env))throw new AppError('Enter the shared passcode to continue.','access',401);
       if(url.pathname==='/api/connection'){await(await app.client()).connected();return response({connected:true});}
-      if(url.pathname==='/api/maintenance'){const result=await app.maintenance();await app.client();return response(result);}
       if(url.pathname==='/api/jobs'){
         const body=await request.text();if(body.length>4096)throw new AppError('Request is too large.','validation',413);
         let d;try{d=JSON.parse(body);}catch{throw new AppError('Invalid request.');}
