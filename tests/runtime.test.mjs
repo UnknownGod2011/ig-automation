@@ -21,7 +21,7 @@ test('built Worker streams MP4 to R2, persists publication, deletes video, rejec
     const html=await(await mf.dispatchFetch('https://private.example/')).text();assert.ok(html.includes('Reel Reposter'));assert.ok(!html.includes('runtime-only-secret'));assert.ok(!html.includes('runtime-only-token'));
     let cookie='';const post=(path,data={},origin='https://private.example',address='192.0.2.1')=>mf.dispatchFetch('https://private.example'+path,{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,Cookie:cookie,'CF-Connecting-IP':address},body:JSON.stringify(data)});
     assert.equal((await post('/api/connection',{},'https://evil.example')).status,403);
-    assert.ok(html.includes('shared passcode'));assert.ok(!html.includes('test-only-passcode'));assert.ok(!html.includes('POST REEL'));
+    assert.ok(html.includes('shared passcode'));assert.ok(!html.includes('test-only-passcode'));assert.ok(!html.includes('POST REELS'));
     for(const path of ['/api/connection','/api/jobs','/api/jobs/'+crypto.randomUUID()+'/advance','/api/maintenance'])assert.equal((await post(path)).status,401);
     assert.equal((await post('/api/access',{passcode:'wrong'})).status,401);
     const unlocked=await post('/api/access',{passcode:'test-only-passcode'});assert.equal(unlocked.status,200);const setCookie=unlocked.headers.get('Set-Cookie');assert.match(setCookie,/HttpOnly; Secure; SameSite=Strict/);cookie=setCookie.split(';')[0];
@@ -30,7 +30,7 @@ test('built Worker streams MP4 to R2, persists publication, deletes video, rejec
     assert.equal(await authenticated(new Request('https://private.example',{headers:{Cookie:cookie}}),authEnv,Date.now()+9*3600000),false);
     assert.equal(await authenticated(new Request('https://private.example',{headers:{Cookie:cookie+'a'}}),authEnv),false);
     assert.equal(await authenticated(new Request('https://private.example',{headers:{Cookie:cookie}}),{...authEnv,APP_PASSCODE:'rotated-test-passcode'}),false);
-    assert.ok((await(await mf.dispatchFetch('https://private.example/',{headers:{Cookie:cookie}})).text()).includes('POST REEL'));
+    assert.ok((await(await mf.dispatchFetch('https://private.example/',{headers:{Cookie:cookie}})).text()).includes('POST REELS'));
     assert.equal((await post('/api/maintenance')).status,401);
     assert.equal((await mf.dispatchFetch('https://private.example/api/maintenance',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer test-only-maintenance'},body:'{}'})).status,200);
     for(let i=0;i<5;i++)assert.equal((await post('/api/access',{passcode:'wrong'},'https://private.example','192.0.2.2')).status,401);

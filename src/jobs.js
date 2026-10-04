@@ -7,7 +7,7 @@ import {getAccessToken} from './tokens.js';
 export class Reposter {
   constructor(env,{fetcher=(...args)=>fetch(...args),now=()=>Date.now(),downloader,meta,tokenProvider=getAccessToken}={}){this.env=env;this.fetcher=fetcher;this.now=now;this.store=new JobStore(env.DB);this.downloader=downloader??downloaderFor(env,fetcher);this.meta=meta;this.tokenProvider=tokenProvider;}
   async client(){return this.meta??new MetaClient(this.env,await this.tokenProvider(this.env,this.fetcher,this.now()),this.fetcher);}
-  async create(id,url){if(!/^[0-9a-f-]{36}$/.test(id??''))throw new AppError('Invalid request ID.');const n=normalizeReelUrl(url);const existing=await this.store.get(id);if(existing&&existing.shortcode!==n.shortcode)throw new AppError('This request ID already belongs to another Reel.', 'validation',409);return publicJob(await this.store.create(id,n,this.now()));}
+  async create(id,url,caption='FOLLOW FOR MORE!'){if(typeof caption!=='string'||Array.from(caption).length>2200||caption.includes('\0'))throw new AppError('Caption must contain at most 2,200 characters.');if(!/^[0-9a-f-]{36}$/.test(id??''))throw new AppError('Invalid request ID.');const n=normalizeReelUrl(url);const existing=await this.store.get(id);if(existing&&existing.shortcode!==n.shortcode)throw new AppError('This request ID already belongs to another Reel.', 'validation',409);return publicJob(await this.store.create(id,n,this.now(),caption));}
   async cleanup(job,lease){
     if(!job.object_key)return;
     await this.env.BUCKET.delete(job.object_key);
@@ -42,7 +42,7 @@ export class Reposter {
       }else if(job.status==='sending'){
         if(!this.env.TRANSPORT_ORIGIN)throw new AppError('Temporary video transport is not configured.','sending',503);
         const videoUrl=`${this.env.TRANSPORT_ORIGIN}/video/${id}/${job.video_token}/source.mp4`;
-        const container=await(await this.client()).create(videoUrl,this.env.LIVE_TEST_AI_SHORTCODE===job.shortcode);
+        const container=await(await this.client()).create(videoUrl,this.env.LIVE_TEST_AI_SHORTCODE===job.shortcode,job.caption);
         await this.store.update(id,{container_id:container,status:'processing',processing_started:this.now(),poll_after:this.now()+60000,updated_at:this.now()},lease);
       }else if(job.status==='processing'){
         const meta=await this.client();const state=await meta.status(job.container_id);

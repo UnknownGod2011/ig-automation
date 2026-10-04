@@ -3,6 +3,7 @@ export const jobs = sqliteTable('jobs', {
   id: text('id').primaryKey(),
   shortcode: text('shortcode').notNull(),
   sourceUrl: text('source_url').notNull(),
+  caption: text('caption').notNull().default('FOLLOW FOR MORE!'),
   status: text('status').notNull(),
   error: text('error'),
   failedStage: text('failed_stage'),

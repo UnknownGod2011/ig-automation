@@ -1,0 +1,1 @@
+ALTER TABLE `jobs` ADD `caption` text DEFAULT 'FOLLOW FOR MORE!' NOT NULL;

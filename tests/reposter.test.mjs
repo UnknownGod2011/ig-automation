@@ -1,6 +1,6 @@
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync,readdirSync} from 'node:fs';
 import {Miniflare} from 'miniflare';
 import {normalizeReelUrl,isInstagramCdn} from '../src/url.js';
 import {CobaltDownloader,PublicInstagramDownloader,fetchVideo} from '../src/downloader.js';
@@ -10,7 +10,7 @@ import {getAccessToken} from '../src/tokens.js';
 import {AppError} from '../src/errors.js';
 import relay from '../transport/worker.js';
 let mf,db,bucket,sequence=0;
-before(async()=>{mf=new Miniflare({modules:true,script:'export default {fetch(){return new Response("ok")}}',compatibilityDate:'2025-10-01',d1Databases:{DB:'jobs'},r2Buckets:['BUCKET']});db=await mf.getD1Database('DB');bucket=await mf.getR2Bucket('BUCKET');for(const sql of readFileSync('drizzle/0000_keen_jocasta.sql','utf8').split('--> statement-breakpoint').filter(s=>s.trim()))await db.prepare(sql).run();});
+before(async()=>{mf=new Miniflare({modules:true,script:'export default {fetch(){return new Response("ok")}}',compatibilityDate:'2025-10-01',d1Databases:{DB:'jobs'},r2Buckets:['BUCKET']});db=await mf.getD1Database('DB');bucket=await mf.getR2Bucket('BUCKET');for(const file of readdirSync('drizzle').filter(f=>f.endsWith('.sql')).sort())for(const sql of readFileSync('drizzle/'+file,'utf8').split('--> statement-breakpoint').filter(s=>s.trim()))await db.prepare(sql).run();});
 after(async()=>{await mf?.dispose();});
 function fixture({stageFailure,deleteFailure=false,processing='FINISHED',publishNetwork=false}={}){
   let now=Date.now()+sequence*10000000;const code='TestCase'+(++sequence);const counts={download:0,create:0,publish:0,delete:0};
@@ -24,6 +24,7 @@ function fixture({stageFailure,deleteFailure=false,processing='FINISHED',publish
 }
 async function ready(f){await f.app.create(f.id,`https://instagram.com/reel/${f.code}/`);await f.app.advance(f.id);await f.app.advance(f.id);f.tick();}
 test('normalizes valid Reel, plural Reel, video post and query strings',()=>{for(const p of['reel','reels','p'])assert.deepEqual(normalizeReelUrl(`https://instagram.com/${p}/Db8yWXrswOT/?igsh=hello#fragment`),{url:'https://www.instagram.com/reel/Db8yWXrswOT/',shortcode:'Db8yWXrswOT'});});
+test('custom caption is persisted once and passed unchanged to Meta',async()=>{const f=fixture();let caption;f.app.meta.create=async(_url,_ai,value)=>{caption=value;return '12345678';};await f.app.create(f.id,`https://instagram.com/reel/${f.code}/`,'My custom caption 🎬');await f.app.create(f.id,`https://instagram.com/reel/${f.code}/`,'different retry caption');await f.app.advance(f.id);await f.app.advance(f.id);assert.equal(caption,'My custom caption 🎬');assert.equal((await f.app.store.get(f.id)).caption,caption);await assert.rejects(()=>f.app.create(crypto.randomUUID(),`https://instagram.com/reel/${f.code}/`,'x'.repeat(2201)));});
 test('rejects malformed URLs, unsupported Instagram paths and fake hosts',()=>{for(const u of['bad','http://instagram.com/reel/Abc123/','https://instagram.com.evil.test/reel/Abc123/','https://evilinstagram.com/reel/Abc123/','https://instagram.com@evil.test/reel/Abc123/','https://www.instagram.com:8443/reel/Abc123/','https://www.instagram.com/explore/','https://www.instagram.com/reel/Abc123/extra','https://www.instagram.com/reel/%2e%2e/','https://www.instagram.com\\@evil.test/reel/Abc123/'])assert.throws(()=>normalizeReelUrl(u));});
 test('CDN URL allowlist prevents SSRF',()=>{assert.equal(isInstagramCdn('https://scontent.cdninstagram.com/a.mp4'),true);for(const u of['https://cdninstagram.com.evil.test/a','https://127.0.0.1/a','http://scontent.cdninstagram.com/a','https://scontent.cdninstagram.com:8080/a','https://name:password@scontent.cdninstagram.com/a'])assert.equal(isInstagramCdn(u),false);});
 test('Cobalt maintained API success and failure',async()=>{const a=new CobaltDownloader('https://cobalt.example/','secret',async(url,o)=>{assert.equal(JSON.parse(o.body).localProcessing,'disabled');assert.equal(o.headers.Authorization,'Api-Key secret');return Response.json({status:'redirect',url:'https://scontent.cdninstagram.com/a.mp4'});});assert.equal((await a.download('https://instagram.com/reel/Abc123/')).mimeType,'video/mp4');const b=new CobaltDownloader('https://cobalt.example/','',async()=>Response.json({status:'error',error:{code:'error.api.fetch.empty'}}));await assert.rejects(()=>b.download('https://instagram.com/reel/Abc123/'));});

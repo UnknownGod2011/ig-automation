@@ -20,7 +20,7 @@ export class MetaClient {
     return d;
   }
   async connected() { const d=await this.request(this.env.INSTAGRAM_USER_ID,{fields:'id,username'},'connection'); if(!validId(d.id)) throw new AppError('Instagram account could not be verified.','connection',503);return true; }
-  async create(videoUrl,isAi=false) {const d=await this.request(`${this.env.INSTAGRAM_USER_ID}/media`,{media_type:'REELS',video_url:videoUrl,caption:CAPTION,share_to_feed:true,...(isAi?{is_ai_generated:true}:{})},'sending','POST');if(!validId(d.id))throw new AppError('Instagram did not return a valid container ID.','sending',502);return d.id;}
+  async create(videoUrl,isAi=false,caption=CAPTION) {const d=await this.request(`${this.env.INSTAGRAM_USER_ID}/media`,{media_type:'REELS',video_url:videoUrl,caption,share_to_feed:true,...(isAi?{is_ai_generated:true}:{})},'sending','POST');if(!validId(d.id))throw new AppError('Instagram did not return a valid container ID.','sending',502);return d.id;}
   async status(container) { const d=await this.request(container,{fields:'status_code,status'},'processing');return {code:d.status_code,message:sanitizeMetaMessage(d.status,this.env)}; }
   async publish(container) {const d=await this.request(`${this.env.INSTAGRAM_USER_ID}/media_publish`,{creation_id:container},'publishing','POST');if(!validId(d.id))throw new AppError('Instagram did not return a media ID. Check Instagram before trying anything else.','publishing',502);return d.id;}
   async inspectMedia(id) {return this.request(id,{fields:'id,caption,media_type,media_product_type,permalink'},'verification');}

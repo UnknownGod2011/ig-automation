@@ -28,7 +28,7 @@ export default {
       if(origin && origin!==(env.SITE_ORIGIN??url.origin))throw new AppError('This request must come from this Site.','validation',403);
       if(request.headers.get('Sec-Fetch-Site')==='cross-site')throw new AppError('This request must come from this Site.','validation',403);
       if(!/^application\/json(?:;|$)/i.test(request.headers.get('Content-Type')??''))throw new AppError('Use a JSON request.','validation',415);
-      if(Number(request.headers.get('Content-Length'))>4096)throw new AppError('Request is too large.','validation',413);
+      if(Number(request.headers.get('Content-Length'))>16384)throw new AppError('Request is too large.','validation',413);
       if(url.pathname==='/api/access')return await login(request,env);
       if(url.pathname==='/api/maintenance'){
         const bearer=/^Bearer (.+)$/.exec(request.headers.get('Authorization')??'')?.[1];
@@ -36,11 +36,11 @@ export default {
         const result=await app.maintenance();await app.client();return response(result);
       }
       if(!await authenticated(request,env))throw new AppError('Enter the shared passcode to continue.','access',401);
-      if(url.pathname==='/api/connection'){await(await app.client()).connected();return response({connected:true});}
+      if(url.pathname==='/api/connection'){await(await app.client()).connected();await app.maintenance();return response({connected:true});}
       if(url.pathname==='/api/jobs'){
-        const body=await request.text();if(body.length>4096)throw new AppError('Request is too large.','validation',413);
+        const body=await request.text();if(body.length>16384)throw new AppError('Request is too large.','validation',413);
         let d;try{d=JSON.parse(body);}catch{throw new AppError('Invalid request.');}
-        return response(await app.create(d.id,d.url));
+        return response(await app.create(d.id,d.url,d.caption));
       }
       const route=/^\/api\/jobs\/([0-9a-f-]{36})\/(advance|retry|inspect)$/.exec(url.pathname);
       if(route){
