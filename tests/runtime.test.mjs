@@ -32,6 +32,7 @@ test('built Worker streams MP4 to R2, persists publication, deletes video, rejec
     assert.equal(await authenticated(new Request('https://private.example',{headers:{Cookie:cookie}}),{...authEnv,APP_PASSCODE:'rotated-test-passcode'}),false);
     assert.ok((await(await mf.dispatchFetch('https://private.example/',{headers:{Cookie:cookie}})).text()).includes('POST REEL'));
     assert.equal((await post('/api/maintenance')).status,401);
+    assert.equal((await mf.dispatchFetch('https://private.example/api/maintenance',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer test-only-maintenance'},body:'{}'})).status,200);
     for(let i=0;i<5;i++)assert.equal((await post('/api/access',{passcode:'wrong'},'https://private.example','192.0.2.2')).status,401);
     assert.equal((await post('/api/access',{passcode:'test-only-passcode'},'https://private.example','192.0.2.2')).status,429);
     const connection=await post('/api/connection');assert.equal(connection.status,200,await connection.text());

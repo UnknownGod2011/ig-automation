@@ -31,7 +31,8 @@ export default {
       if(Number(request.headers.get('Content-Length'))>4096)throw new AppError('Request is too large.','validation',413);
       if(url.pathname==='/api/access')return await login(request,env);
       if(url.pathname==='/api/maintenance'){
-        if(!await sameSecret(request.headers.get('X-Reposter-Maintenance'),env.MAINTENANCE_TOKEN))throw new AppError('Maintenance access denied. Send the Site service token in X-Reposter-Maintenance.','access',401);
+        const bearer=/^Bearer (.+)$/.exec(request.headers.get('Authorization')??'')?.[1];
+        if(!await sameSecret(bearer,env.MAINTENANCE_TOKEN))throw new AppError('Maintenance access denied. Send the Site service token as Bearer authorization.','access',401);
         const result=await app.maintenance();await app.client();return response(result);
       }
       if(!await authenticated(request,env))throw new AppError('Enter the shared passcode to continue.','access',401);
