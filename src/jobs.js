@@ -9,7 +9,7 @@ export class Reposter {
   async client(){return this.meta??new MetaClient(this.env,await this.tokenProvider(this.env,this.fetcher,this.now()),this.fetcher);}
   async create(id,url,caption='FOLLOW FOR MORE!'){if(typeof caption!=='string'||Array.from(caption).length>2200||caption.includes('\0'))throw new AppError('Caption must contain at most 2,200 characters.');if(!/^[0-9a-f-]{36}$/.test(id??''))throw new AppError('Invalid request ID.');const n=normalizeReelUrl(url);const existing=await this.store.get(id);if(existing&&existing.shortcode!==n.shortcode)throw new AppError('This request ID already belongs to another Reel.', 'validation',409);return publicJob(await this.store.create(id,n,this.now(),caption));}
   async cleanup(job,lease){
-    if(!job.object_key)return;
+    if(!job.object_key){if(job.cleanup_pending)await this.store.update(job.id,{cleanup_pending:0},lease);return;}
     await this.env.BUCKET.delete(job.object_key);
     if(await this.env.BUCKET.head(job.object_key))throw new AppError('The Reel is published, but temporary-video cleanup needs another attempt.','cleanup',503);
     await this.store.update(job.id,{object_key:null,cleanup_pending:0,updated_at:this.now()},lease);
@@ -73,7 +73,7 @@ export class Reposter {
     }finally{await this.store.update(id,{lease_until:0,lease_id:null},lease);}
     return publicJob(await this.store.get(id));
   }
-  async retry(id){const j=await this.store.get(id);if(!j)throw new AppError('Job not found.','validation',404);if(j.media_id)return publicJob(j);if(!publicJob(j).retrySafe)throw new AppError('This job cannot safely be reposted. Check Instagram first.','publishing',409);await this.store.update(id,{status:'downloading',error:null,failed_stage:null,updated_at:this.now()});return publicJob(await this.store.get(id));}
+  async retry(id){const j=await this.store.get(id);if(!j)throw new AppError('Job not found.','validation',404);if(j.media_id)return publicJob(j);if(!publicJob(j).retrySafe)throw new AppError('This job cannot safely be reposted. Check Instagram first.','publishing',409);await this.cleanup(j);await this.store.update(id,{status:'downloading',error:null,failed_stage:null,cleanup_pending:0,poll_after:0,updated_at:this.now()});return publicJob(await this.store.get(id));}
   async maintenance(){
     let deleted=0,waiting=0;
     for(const j of await this.store.stale(this.now())){
