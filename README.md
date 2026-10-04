@@ -13,7 +13,7 @@ The production source is maintained in this Git repository and mirrored to the S
 ## Correctness
 
 - Strict HTTPS Instagram domain/path validation and Instagram CDN allowlisting, including every redirect. No login, account cookies, or private content bypass.
-- The maintained Cobalt API adapter is available for a separately authorized/self-hosted instance. The default downloader uses logged-out public metadata extraction based on yt-dlp, with an embed fallback. It rejects carousels rather than choosing a different clip.
+- The maintained Cobalt API adapter is available for a separately authorized/self-hosted instance. The default downloader uses logged-out public metadata extraction based on yt-dlp, preferring the public embed before page/API fallbacks. Temporary metadata failures retry automatically with persisted attempt counts and increasing delays, before any Meta container or publication exists. It rejects carousels rather than choosing a different clip.
 - The video streams from Instagram into R2; no video passes through the browser, Git, or D1.
 - Graph API **v26.0**, Instagram Login on `graph.instagram.com`: create `REELS` container, poll once per minute, publish only at `FINISHED`, then save the returned valid media ID before deleting R2 bytes.
 - A unique shortcode record merges double-clicks and repeated URLs. D1 leases serialize transitions. An irreversible publish claim is persisted **before** `media_publish`. No ambiguous publish response is ever automatically retransmitted. A missing media ID is shown as uncertain even if the container reports publication; the utility deliberately refuses to risk a duplicate.

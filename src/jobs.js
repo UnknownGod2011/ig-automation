@@ -31,11 +31,11 @@ export class Reposter {
         const objectKey=`temp-reels/${id}/source.mp4`;
         await this.store.update(id,{download_attempts:job.download_attempts+1,updated_at:this.now()},lease);
         const result=await this.downloader.download(job.source_url);
-        await this.store.update(id,{status:'preparing',object_key:objectKey,updated_at:this.now()},lease);
+        await this.store.update(id,{status:'preparing',error:null,object_key:objectKey,updated_at:this.now()},lease);
         const video=await fetchVideo(result.mediaUrl,this.fetcher,this.env.COBALT_API_URL?new URL(this.env.COBALT_API_URL).origin:'');
         await this.env.BUCKET.put(objectKey,video.stream,{httpMetadata:{contentType:video.mimeType},customMetadata:{jobId:id}});
         if(!(await this.env.BUCKET.head(objectKey)))throw new AppError('Temporary video could not be saved.','preparing',503);
-        await this.store.update(id,{status:'sending',updated_at:this.now()},lease);
+        await this.store.update(id,{status:'sending',error:null,poll_after:0,updated_at:this.now()},lease);
       }else if(job.status==='preparing'){
         // Recover an interrupted download; there is no Meta container or publication yet.
         if(job.object_key)await this.cleanup(job,lease);
@@ -44,7 +44,7 @@ export class Reposter {
         if(!this.env.TRANSPORT_ORIGIN)throw new AppError('Temporary video transport is not configured.','sending',503);
         const videoUrl=`${this.env.TRANSPORT_ORIGIN}/video/${id}/${job.video_token}/source.mp4`;
         const container=await(await this.client()).create(videoUrl,this.env.LIVE_TEST_AI_SHORTCODE===job.shortcode,job.caption);
-        await this.store.update(id,{container_id:container,status:'processing',processing_started:this.now(),poll_after:this.now()+60000,updated_at:this.now()},lease);
+        await this.store.update(id,{container_id:container,status:'processing',error:null,processing_started:this.now(),poll_after:this.now()+60000,updated_at:this.now()},lease);
       }else if(job.status==='processing'){
         const meta=await this.client();const state=await meta.status(job.container_id);
         if(state.code==='FINISHED'){
