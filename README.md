@@ -4,6 +4,8 @@ A private single-user utility. Paste a public Instagram Reel (or single video `/
 
 ## Hosting
 
+Current private deployment: https://reel-reposter-nubloom.nubloomtech.chatgpt.site, owned by the user's Nubloom account. The tracked hosting manifests identify this deployment and its video transport. The earlier unpublished Sites in the other account are not used.
+
 The interface and all publishing endpoints run on an owner-private ChatGPT Site. Sites D1 stores small job records and Sites R2 holds temporary MP4 transport objects. An additional Sites Worker in `transport/` serves only unguessable temporary video URLs to Meta. It exposes no interface or administration. This relay is required because owner-private Sites require authentication on every route and Meta's URL downloader cannot send the Sites service header. The relay forwards only a narrowly validated video path to the fixed private Site origin, using its server-side Sites service credential. No Instagram credentials are shared with the relay.
 
 The production source is maintained in this Git repository and mirrored to the Sites-managed source repositories using the official Sites workflow. `.openai/hosting.json` contains only Site identity and logical storage bindings.

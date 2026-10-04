@@ -24,7 +24,7 @@ export async function getAccessToken(env,fetcher=fetch,now=Date.now()) {
   if(!refresh)url.searchParams.set('client_secret',env.INSTAGRAM_APP_SECRET);
   // Official token endpoints require query parameters; never log their URL or response.
   let d,r;try{r=await fetcher(url,{redirect:'manual',signal:AbortSignal.timeout(20000)});d=await r.json();}catch(e){console.warn(JSON.stringify({event:'token_transport_failed',type:e?.name}));throw new AppError('Instagram token renewal is temporarily unavailable.','connection',503);}
-  if(!refresh && !r.ok && d.error?.code===452){
+  if(!refresh && !r.ok){
     // Meta rejects re-exchanging an already long-lived token. Verify it through
     // the official refresh endpoint rather than assuming it is still valid.
     const existing=new URL('https://graph.instagram.com/refresh_access_token');
