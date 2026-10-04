@@ -22,6 +22,13 @@
       "when": 1791115285857,
       "tag": "0002_good_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791142873135,
+      "tag": "0003_lyrical_elektra",
+      "breakpoints": true
     }
   ]
 }

@@ -13,7 +13,7 @@ test('exact copied and plural Reel links produce identical clean downloader requ
   const calls=[];
   const d=new PublicInstagramDownloader(async(url)=>{calls.push(url);return new Response(html);});
   assert.deepEqual(await d.download(copied),await d.download(plural));
-  assert.deepEqual(calls,['https://www.instagram.com/p/Dd8IxXoI6W5/','https://www.instagram.com/p/Dd8IxXoI6W5/']);
+  assert.deepEqual(calls,['https://www.instagram.com/p/Dd8IxXoI6W5/embed/captioned/','https://www.instagram.com/p/Dd8IxXoI6W5/','https://www.instagram.com/p/Dd8IxXoI6W5/embed/captioned/','https://www.instagram.com/p/Dd8IxXoI6W5/']);
 });
 
 test('temporary public download failure retries before failing the job',async()=>{

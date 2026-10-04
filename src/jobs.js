@@ -5,7 +5,7 @@ import {downloaderFor,fetchVideo} from './downloader.js';
 import {MetaClient} from './meta.js';
 import {getAccessToken} from './tokens.js';
 export class Reposter {
-  constructor(env,{fetcher=(...args)=>fetch(...args),now=()=>Date.now(),downloader,meta,tokenProvider=getAccessToken}={}){this.env=env;this.fetcher=fetcher;this.now=now;this.store=new JobStore(env.DB);this.downloader=downloader??downloaderFor(env,fetcher);this.meta=meta;this.tokenProvider=tokenProvider;}
+  constructor(env,{fetcher=(...args)=>fetch(...args),now=()=>Date.now(),downloader,meta,tokenProvider=getAccessToken,maxDownloadAttempts=5}={}){this.env=env;this.fetcher=fetcher;this.now=now;this.store=new JobStore(env.DB);this.downloader=downloader??downloaderFor(env,fetcher);this.meta=meta;this.tokenProvider=tokenProvider;this.maxDownloadAttempts=maxDownloadAttempts;}
   async client(){return this.meta??new MetaClient(this.env,await this.tokenProvider(this.env,this.fetcher,this.now()),this.fetcher);}
   async create(id,url,caption='FOLLOW FOR MORE!'){if(typeof caption!=='string'||Array.from(caption).length>2200||caption.includes('\0'))throw new AppError('Caption must contain at most 2,200 characters.');if(!/^[0-9a-f-]{36}$/.test(id??''))throw new AppError('Invalid request ID.');const n=normalizeReelUrl(url);const existing=await this.store.get(id);if(existing&&existing.shortcode!==n.shortcode)throw new AppError('This request ID already belongs to another Reel.', 'validation',409);return publicJob(await this.store.create(id,n,this.now(),caption));}
   async cleanup(job,lease){
@@ -29,6 +29,7 @@ export class Reposter {
       }else if(job.status==='downloading'){
         // Reserve the object key BEFORE writing bytes so a crash leaves an identifiable orphan.
         const objectKey=`temp-reels/${id}/source.mp4`;
+        await this.store.update(id,{download_attempts:job.download_attempts+1,updated_at:this.now()},lease);
         const result=await this.downloader.download(job.source_url);
         await this.store.update(id,{status:'preparing',object_key:objectKey,updated_at:this.now()},lease);
         const video=await fetchVideo(result.mediaUrl,this.fetcher,this.env.COBALT_API_URL?new URL(this.env.COBALT_API_URL).origin:'');
@@ -63,7 +64,10 @@ export class Reposter {
       job=await this.store.get(id);
       if(job.media_id){await this.store.update(id,{status:'published',cleanup_pending:1,error:'Published. Temporary-video cleanup is pending.',updated_at:this.now()},lease);}
       else if(job.publish_attempted){await this.store.update(id,{status:'uncertain',error:safeError(error)+' Automatic reposting is blocked to prevent duplicates.',failed_stage:'publishing',poll_after:this.now()+60000,updated_at:this.now()},lease);}
-      else{
+      else if(!job.container_id&&!job.object_key&&job.status==='downloading'&&error.stage==='downloading'&&job.download_attempts<this.maxDownloadAttempts){
+        const delay=[5000,15000,30000,60000][Math.min(job.download_attempts-1,3)];
+        await this.store.update(id,{status:'downloading',error:'Instagram temporarily withheld the video. Retrying automatically ('+job.download_attempts+'/'+this.maxDownloadAttempts+').',poll_after:this.now()+delay,cleanup_pending:0,updated_at:this.now()},lease);
+      }else{
         // Do not discard a transport object while Instagram may still be fetching/processing it.
         let safeToDelete=!job.container_id;
         if(job.container_id){try{safeToDelete=['ERROR','EXPIRED','FINISHED'].includes((await(await this.client()).status(job.container_id)).code);}catch{}}
@@ -73,7 +77,7 @@ export class Reposter {
     }finally{await this.store.update(id,{lease_until:0,lease_id:null},lease);}
     return publicJob(await this.store.get(id));
   }
-  async retry(id){const j=await this.store.get(id);if(!j)throw new AppError('Job not found.','validation',404);if(j.media_id)return publicJob(j);if(!publicJob(j).retrySafe)throw new AppError('This job cannot safely be reposted. Check Instagram first.','publishing',409);await this.cleanup(j);await this.store.update(id,{status:'downloading',error:null,failed_stage:null,cleanup_pending:0,poll_after:0,updated_at:this.now()});return publicJob(await this.store.get(id));}
+  async retry(id){const j=await this.store.get(id);if(!j)throw new AppError('Job not found.','validation',404);if(j.media_id)return publicJob(j);if(!publicJob(j).retrySafe)throw new AppError('This job cannot safely be reposted. Check Instagram first.','publishing',409);await this.cleanup(j);await this.store.update(id,{status:'downloading',error:null,failed_stage:null,cleanup_pending:0,poll_after:0,download_attempts:0,updated_at:this.now()});return publicJob(await this.store.get(id));}
   async maintenance(){
     let deleted=0,waiting=0;
     for(const j of await this.store.stale(this.now())){

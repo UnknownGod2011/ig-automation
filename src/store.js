@@ -7,7 +7,7 @@ export class JobStore {
     return this.byShortcode(normalized.shortcode);
   }
   async update(id,patch,leaseId) {
-    const fields = new Set(['status','error','failed_stage','container_id','media_id','object_key','publish_attempted','lease_until','lease_id','updated_at','poll_after','processing_started','cleanup_pending']);
+    const fields = new Set(['status','error','failed_stage','container_id','media_id','object_key','publish_attempted','lease_until','lease_id','updated_at','poll_after','processing_started','cleanup_pending','download_attempts']);
     const entries=Object.entries(patch); if(entries.some(([k])=>!fields.has(k))) throw new Error('Invalid job field');
     const q = `UPDATE jobs SET ${entries.map(([k])=>`${k} = ?`).join(',')} WHERE id = ?${leaseId?' AND lease_id = ?':''}`;
     const r = await this.db.prepare(q).bind(...entries.map(([,v])=>v),id,...(leaseId?[leaseId]:[])).run();

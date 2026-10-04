@@ -19,6 +19,7 @@ export const jobs = sqliteTable('jobs', {
   pollAfter: integer('poll_after').notNull().default(0),
   processingStarted: integer('processing_started'),
   cleanupPending: integer('cleanup_pending').notNull().default(0),
+  downloadAttempts: integer('download_attempts').notNull().default(0),
 }, t => [uniqueIndex('jobs_shortcode_unique').on(t.shortcode)]);
 export const tokenState = sqliteTable('token_state', {
   id: integer('id').primaryKey(), ciphertext: text('ciphertext').notNull(),

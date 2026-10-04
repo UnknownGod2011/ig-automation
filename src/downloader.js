@@ -49,6 +49,16 @@ export class PublicInstagramDownloader {
     const target = `https://www.instagram.com/p/${shortcode}/`;
     let html = '';
     try {
+      // Most public Reels expose their complete original MP4 in the embed. Try this
+      // before extra page/GraphQL requests, which increase rate-limit pressure.
+      try {
+        const embed = await fetcher(`${target}embed/captioned/`, {headers:{'User-Agent':'Mozilla/5.0'},redirect:'manual'});
+        if(embed.ok){
+          const text=await embed.text();
+          const context=text.match(/"contextJSON":("(?:\\.|[^"\\])*")/);
+          if(context){const data=JSON.parse(JSON.parse(context[1]));if(data.context?.shortcode===shortcode&&!data.context?.copyright_blocked){const found=extractPublicVideo(data,shortcode);if(found)return found;}}
+        }
+      }catch{ /* Fall back to public page metadata, never a login or cookies. */ }
       const response = await fetcher(target, { headers, redirect: 'manual' });
       if (response.ok) html = await response.text();
       // Embedded public metadata is preferable to an additional API call.
@@ -73,17 +83,6 @@ export class PublicInstagramDownloader {
           const r = await fetcher('https://www.instagram.com/api/graphql', {method:'POST', headers: {...headers, 'Content-Type':'application/x-www-form-urlencoded', 'X-FB-LSD':lsd, 'X-FB-Friendly-Name':body.fb_api_req_friendly_name}, body:new URLSearchParams({...body,lsd,fb_api_caller_class:'RelayModern',server_timestamps:'true'}), redirect:'manual'});
           if (r.ok) { const found = extractPublicVideo(await r.json(),shortcode); if (found) return found; }
         } catch { /* Try the next public-only extraction method. */ }
-      }
-      const embed = await fetcher(`${target}embed/captioned/`, {headers:{'User-Agent':'Mozilla/5.0'},redirect:'manual'});
-      if (embed.ok) {
-        const text = await embed.text();
-        const context = text.match(/"contextJSON":("(?:\\.|[^"\\])*")/);
-        if (context) {
-          const data = JSON.parse(JSON.parse(context[1]));
-          if (data.context?.shortcode === shortcode && !data.context?.copyright_blocked) {
-            const found = extractPublicVideo(data,shortcode); if (found) return found;
-          }
-        }
       }
     } catch { /* Upstream details are deliberately not exposed. */ }
     throw failure();

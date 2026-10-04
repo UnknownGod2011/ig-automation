@@ -1,0 +1,1 @@
+ALTER TABLE `jobs` ADD `download_attempts` integer DEFAULT 0 NOT NULL;
