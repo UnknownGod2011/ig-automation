@@ -1,0 +1,5 @@
+dist/
+.env*
+.sites-checkout/
+.sites-runtime/
+*.tar.gz
