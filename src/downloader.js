@@ -7,10 +7,11 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const headers = { 'User-Agent': UA, 'X-IG-App-ID': '936619743392459', 'Referer': 'https://www.instagram.com/', 'Accept-Language': 'en-US,en;q=0.9' };
 const failure = () => new AppError('Instagram did not provide this public video. It may be private, unavailable, or temporarily rate limited.', 'downloading', 422);
 
-export function extractPublicVideo(data) {
+export function extractPublicVideo(data, expectedShortcode) {
   // Only accept the media object returned for the requested public post; never a related recommendation.
   const p = data?.data?.xig_polaris_media?.if_not_gated_logged_out ?? data?.data?.xdt_shortcode_media ?? data?.graphql?.shortcode_media ?? data?.gql_data?.shortcode_media ?? data?.items?.[0];
   if (!p || p.owner?.is_private || p.user?.is_private || p.carousel_media || p.edge_sidecar_to_children) return null;
+  if (expectedShortcode && p.shortcode && p.shortcode !== expectedShortcode) return null;
   const best = p.video_versions?.filter(v => isInstagramCdn(v.url)).sort((a,b) => b.width*b.height-a.width*a.height)[0]?.url;
   const url = best ?? (p.is_video !== false ? p.video_url : null);
   return isInstagramCdn(url) ? { mediaUrl: url, mimeType: 'video/mp4' } : null;
@@ -19,7 +20,7 @@ export function extractPublicVideo(data) {
 // Logged-out metadata extraction adapted from yt-dlp's maintained Instagram extractor.
 // No account credentials, session cookies, or login automation are used.
 export class PublicInstagramDownloader {
-  constructor(fetcher = fetch) { this.fetcher = fetcher; }
+  constructor(fetcher = (...args)=>fetch(...args)) { this.fetcher = fetcher; }
   async download(input) {
     const { shortcode } = normalizeReelUrl(input);
     const target = `https://www.instagram.com/p/${shortcode}/`;
@@ -33,7 +34,7 @@ export class PublicInstagramDownloader {
         const stack = [root];
         while (stack.length) {
           const x = stack.pop(); if (!x || typeof x !== 'object') continue;
-          const found = extractPublicVideo(x); if (found) return found;
+          const found = extractPublicVideo(x,shortcode); if (found) return found;
           stack.push(...Object.values(x).filter(v => v && typeof v === 'object'));
         }
       }
@@ -47,7 +48,7 @@ export class PublicInstagramDownloader {
       for (const body of requests) {
         try {
           const r = await this.fetcher('https://www.instagram.com/api/graphql', {method:'POST', headers: {...headers, 'Content-Type':'application/x-www-form-urlencoded', 'X-FB-LSD':lsd, 'X-FB-Friendly-Name':body.fb_api_req_friendly_name}, body:new URLSearchParams({...body,lsd,fb_api_caller_class:'RelayModern',server_timestamps:'true'}), redirect:'manual',signal:AbortSignal.timeout(25000)});
-          if (r.ok) { const found = extractPublicVideo(await r.json()); if (found) return found; }
+          if (r.ok) { const found = extractPublicVideo(await r.json(),shortcode); if (found) return found; }
         } catch { /* Try the next public-only extraction method. */ }
       }
       const embed = await this.fetcher(`${target}embed/captioned/`, {headers:{'User-Agent':'Mozilla/5.0'},redirect:'manual',signal:AbortSignal.timeout(25000)});
@@ -57,7 +58,7 @@ export class PublicInstagramDownloader {
         if (context) {
           const data = JSON.parse(JSON.parse(context[1]));
           if (data.context?.shortcode === shortcode && !data.context?.copyright_blocked) {
-            const found = extractPublicVideo(data); if (found) return found;
+            const found = extractPublicVideo(data,shortcode); if (found) return found;
           }
         }
       }
@@ -67,13 +68,13 @@ export class PublicInstagramDownloader {
 }
 
 export class CobaltDownloader {
-  constructor(endpoint, apiKey, fetcher = fetch) { this.endpoint = endpoint; this.apiKey = apiKey; this.fetcher = fetcher; }
+  constructor(endpoint, apiKey, fetcher = (...args)=>fetch(...args)) { this.endpoint = endpoint; this.apiKey = apiKey; this.fetcher = fetcher; }
   async download(input) {
     const { url } = normalizeReelUrl(input);
     const endpoint = new URL(this.endpoint);
     if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) throw new AppError('The downloader configuration is invalid.', 'downloading', 503);
     try {
-      const r = await this.fetcher(endpoint, {method:'POST', headers:{Accept:'application/json','Content-Type':'application/json',...(this.apiKey ? {Authorization:`Api-Key ${this.apiKey}`} : {})},body:JSON.stringify({url,videoQuality:'max',localProcessing:'disabled',alwaysProxy:false}),redirect:'error',signal:AbortSignal.timeout(45000)});
+      const r = await this.fetcher(endpoint, {method:'POST', headers:{Accept:'application/json','Content-Type':'application/json',...(this.apiKey ? {Authorization:`Api-Key ${this.apiKey}`} : {})},body:JSON.stringify({url,videoQuality:'max',localProcessing:'disabled',alwaysProxy:false}),redirect:'manual',signal:AbortSignal.timeout(45000)});
       const d = await r.json();
       // A trusted instance may return its own tunnel. Other destinations must be Instagram CDN hosts.
       const u = new URL(d.url);
@@ -83,11 +84,11 @@ export class CobaltDownloader {
   }
 }
 
-export function downloaderFor(env, fetcher = fetch) {
+export function downloaderFor(env, fetcher = (...args)=>fetch(...args)) {
   return env.COBALT_API_URL ? new CobaltDownloader(env.COBALT_API_URL,env.COBALT_API_KEY,fetcher) : new PublicInstagramDownloader(fetcher);
 }
 
-export async function fetchVideo(mediaUrl, fetcher = fetch, cobaltOrigin = '') {
+export async function fetchVideo(mediaUrl, fetcher = (...args)=>fetch(...args), cobaltOrigin = '') {
   let url = mediaUrl;
   for (let i=0;i<4;i++) {
     const u = new URL(url);

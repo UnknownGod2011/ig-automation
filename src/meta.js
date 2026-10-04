@@ -7,15 +7,15 @@ export function sanitizeMetaMessage(message,env) {
   return s.replace(/https?:\/\/\S+/g,'[address]').replace(/[A-Za-z0-9_-]{40,}/g,'[redacted]').slice(0,260);
 }
 export class MetaClient {
-  constructor(env,token,fetcher=fetch) { this.env=env;this.token=token;this.fetcher=fetcher; }
+  constructor(env,token,fetcher=(...args)=>fetch(...args)) { this.env=env;this.token=token;this.fetcher=fetcher; }
   async request(path,params={},stage='sending',method='GET') {
     const url=new URL(`https://graph.instagram.com/${API_VERSION}/${path}`);
     if(method==='GET') for(const [k,v]of Object.entries(params)) url.searchParams.set(k,v);
     let r,d;
     try {
-      r=await this.fetcher(url,{method,headers:{Authorization:`Bearer ${this.token}`,...(method==='POST'?{'Content-Type':'application/json'}:{})},...(method==='POST'?{body:JSON.stringify(params)}:{}),redirect:'error',signal:AbortSignal.timeout(45000)});
+      r=await this.fetcher(url,{method,headers:{Authorization:`Bearer ${this.token}`,...(method==='POST'?{'Content-Type':'application/json'}:{})},...(method==='POST'?{body:JSON.stringify(params)}:{}),redirect:'manual',signal:AbortSignal.timeout(45000)});
       d=await r.json();
-    } catch { throw new AppError('Instagram’s response was interrupted. Publication is not confirmed.',stage,502); }
+    } catch(e) { console.warn(JSON.stringify({event:'meta_transport_failed',type:e?.name}));throw new AppError('Instagram’s response was interrupted. Publication is not confirmed.',stage,502); }
     if(!r.ok || d.error) throw new AppError(sanitizeMetaMessage(d.error?.error_user_msg??d.error?.message,this.env),stage,502);
     return d;
   }

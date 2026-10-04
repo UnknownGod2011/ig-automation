@@ -5,7 +5,7 @@ import {downloaderFor,fetchVideo} from './downloader.js';
 import {MetaClient} from './meta.js';
 import {getAccessToken} from './tokens.js';
 export class Reposter {
-  constructor(env,{fetcher=fetch,now=()=>Date.now(),downloader,meta,tokenProvider=getAccessToken}={}){this.env=env;this.fetcher=fetcher;this.now=now;this.store=new JobStore(env.DB);this.downloader=downloader??downloaderFor(env,fetcher);this.meta=meta;this.tokenProvider=tokenProvider;}
+  constructor(env,{fetcher=(...args)=>fetch(...args),now=()=>Date.now(),downloader,meta,tokenProvider=getAccessToken}={}){this.env=env;this.fetcher=fetcher;this.now=now;this.store=new JobStore(env.DB);this.downloader=downloader??downloaderFor(env,fetcher);this.meta=meta;this.tokenProvider=tokenProvider;}
   async client(){return this.meta??new MetaClient(this.env,await this.tokenProvider(this.env,this.fetcher,this.now()),this.fetcher);}
   async create(id,url){if(!/^[0-9a-f-]{36}$/.test(id??''))throw new AppError('Invalid request ID.');const n=normalizeReelUrl(url);const existing=await this.store.get(id);if(existing&&existing.shortcode!==n.shortcode)throw new AppError('This request ID already belongs to another Reel.', 'validation',409);return publicJob(await this.store.create(id,n,this.now()));}
   async cleanup(job,lease){

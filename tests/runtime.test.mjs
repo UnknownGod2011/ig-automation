@@ -6,7 +6,7 @@ test('built Worker streams MP4 to R2, persists publication, deletes video, rejec
   let publishes=0;
   const mockMedia={context:{shortcode:'Runtime123'},gql_data:{shortcode_media:{is_video:true,video_url:'https://scontent.cdninstagram.com/runtime.mp4'}}};
   const mf=new Miniflare({modules:true,script:readFileSync('dist/server/index.js','utf8'),compatibilityDate:'2025-10-01',d1Databases:{DB:'runtime'},r2Buckets:['BUCKET'],bindings:{INSTAGRAM_APP_ID:'11111',INSTAGRAM_USER_ID:'22222',INSTAGRAM_APP_SECRET:'runtime-only-secret',INSTAGRAM_ACCESS_TOKEN:'runtime-only-token',SITE_ORIGIN:'https://private.example',TRANSPORT_ORIGIN:'https://transport.example'},outboundService:async req=>{
-    const u=new URL(req.url);console.log('Mock request path:',u.pathname);
+    const u=new URL(req.url);
     if(u.hostname==='scontent.cdninstagram.com')return new Response(new Uint8Array([0,0,0,24,102,116,121,112,109,112,52,50]),{headers:{'Content-Type':'video/mp4','Content-Length':'12'}});
     if(u.hostname==='www.instagram.com')return new Response(u.pathname.includes('embed')?'"contextJSON":'+JSON.stringify(JSON.stringify(mockMedia)):'');
     if(u.pathname==='/access_token')return Response.json({access_token:'long-lived-runtime-token',expires_in:5184000});

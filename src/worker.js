@@ -23,6 +23,8 @@ export default {
       if(!url.pathname.startsWith('/api/')||request.method!=='POST')return new Response('Not found',{status:404});
       const origin=request.headers.get('Origin');
       if(origin && origin!==(env.SITE_ORIGIN??url.origin))throw new AppError('This request must come from your private Site.','validation',403);
+      if(request.headers.get('Sec-Fetch-Site')==='cross-site')throw new AppError('This request must come from your private Site.','validation',403);
+      if(!/^application\/json(?:;|$)/i.test(request.headers.get('Content-Type')??''))throw new AppError('Use a JSON request.','validation',415);
       if(Number(request.headers.get('Content-Length'))>4096)throw new AppError('Request is too large.','validation',413);
       if(url.pathname==='/api/connection'){await(await app.client()).connected();return response({connected:true});}
       if(url.pathname==='/api/maintenance'){const result=await app.maintenance();await app.client();return response(result);}
