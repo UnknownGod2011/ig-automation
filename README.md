@@ -33,7 +33,7 @@ Local credentials belong in ignored `.env.local`. The existing user's `ig-secret
 
 ## Development and verification
 
-Node 22+, `npm ci`, `npm run db:generate` for schema changes, `npm test`, and `npm run build`. Build output is a Cloudflare-compatible ESM Worker with a default `fetch` export. Drizzle migrations are schema-only and versioned; do not modify migrations already deployed.
+Node 22+, `npm ci`, `npm run db:generate` for schema changes, then `npm run build` and `npm test`. The runtime test exercises the built Worker. Build output is a Cloudflare-compatible ESM Worker with a default `fetch` export. Drizzle migrations are schema-only and versioned; do not modify migrations already deployed.
 
 The automated suite uses an actual local D1 database and R2 object store through Miniflare, with mocked Meta responses. It cannot create a real Instagram post. Live verification is separate and requires explicit authorization for its exact Reel URL.
 
