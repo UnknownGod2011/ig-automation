@@ -1,6 +1,6 @@
 # Reel Reposter
 
-A shared-passcode utility for one destination Instagram account. Enter the shared passcode to unlock; no ChatGPT sign-in is required. Paste up to five public Instagram Reel (or single video `/p/`) links and click **POST REELS**. The queue publishes one Reel at a time and waits for temporary-video deletion before proceeding. Each caption defaults to `FOLLOW FOR MORE!`; EDIT CAPTION allows an optional per-Reel change. Keep the page open while processing; reopening resumes the saved queue. This is browser-driven processing, not an unattended background worker.
+A shared-passcode utility for one destination Instagram account. Enter the shared passcode to unlock; no ChatGPT sign-in is required. Paste up to five public Instagram Reel (or single video `/p/`) links and click **POST REELS**. The queue publishes one Reel at a time and waits for temporary-video deletion before proceeding. Each caption defaults to `FOLLOW FOR MORE FOOTBALL CONTENT!`; EDIT CAPTION allows an optional per-Reel change. Failed or unconfirmed Reels are skipped so later links can proceed; only safely retryable failures offer Retry. Successful input links clear. You can switch tabs or minimize the window while processing; closing or suspending the tab pauses it. Reopening resumes the saved queue. This is browser-driven processing, not an unattended background worker.
 
 ## Hosting
 
