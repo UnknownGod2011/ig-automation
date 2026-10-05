@@ -41,6 +41,18 @@ test('public download retries have a total deadline and never follow a login red
 test('unavailable public media stops after two attempts and cannot become an arbitrary URL fetch',async()=>{
   let calls=0;
   const d=new PublicInstagramDownloader(async()=>{calls++;return new Response('',{status:404});},{sleep:async()=>{}});
-  await assert.rejects(()=>d.download(copied));assert.equal(calls,8);
-  await assert.rejects(()=>d.download('https://instagram.com.evil.test/reel/Dd8IxXoI6W5/'));assert.equal(calls,8);
+  await assert.rejects(()=>d.download(copied));assert.equal(calls,10);
+  await assert.rejects(()=>d.download('https://instagram.com.evil.test/reel/Dd8IxXoI6W5/'));assert.equal(calls,10);
+});
+
+test('redirected public post initializes anonymous metadata token before GraphQL fallback',async()=>{
+  const calls=[];
+  const d=new PublicInstagramDownloader(async(url,options)=>{
+    calls.push(url);assert.equal(options.headers.Cookie,undefined);
+    if(url==='https://www.instagram.com/')return new Response('<script id="__eqmc" type="application/json">{"l":"public-lsd-fixture"}</script>');
+    if(url.endsWith('/api/graphql')){assert.equal(options.headers['X-FB-LSD'],'public-lsd-fixture');assert.equal(options.headers['X-Requested-With'],'XMLHttpRequest');assert.equal(new URLSearchParams(options.body).get('lsd'),'public-lsd-fixture');return Response.json(data);}
+    return new Response(null,{status:302,headers:{location:'/accounts/login/'}});
+  });
+  assert.equal((await d.download(copied)).mimeType,'video/mp4');
+  assert.deepEqual(calls,['https://www.instagram.com/p/Dd8IxXoI6W5/embed/captioned/','https://www.instagram.com/p/Dd8IxXoI6W5/','https://www.instagram.com/','https://www.instagram.com/api/graphql']);
 });

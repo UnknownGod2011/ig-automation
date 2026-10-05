@@ -4,7 +4,7 @@ import { normalizeReelUrl, isInstagramCdn } from './url.js';
 /** @typedef {{mediaUrl: string, mimeType: string}} DownloadResult */
 /** @typedef {{download(url: string): Promise<DownloadResult>}} ReelDownloader */
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
-const headers = { 'User-Agent': UA, 'X-IG-App-ID': '936619743392459', 'Referer': 'https://www.instagram.com/', 'Accept-Language': 'en-US,en;q=0.9' };
+const headers = { 'User-Agent': UA, 'X-IG-App-ID': '936619743392459', 'Referer': 'https://www.instagram.com/', 'Accept-Language': 'en-US,en;q=0.9', 'X-ASBD-ID':'359341', 'X-IG-WWW-Claim':'0', 'Origin':'https://www.instagram.com', 'Accept':'*/*' };
 const failure = () => new AppError('Instagram did not provide this public video. It may be private, unavailable, or temporarily rate limited.', 'downloading', 422);
 
 export function extractPublicVideo(data, expectedShortcode) {
@@ -71,7 +71,19 @@ export class PublicInstagramDownloader {
           stack.push(...Object.values(x).filter(v => v && typeof v === 'object'));
         }
       }
-      const lsd = html.match(/\["LSD",\[\],\{"token":"([^"]+)"/)?.[1] ?? html.match(/"lsd"\s*:\s*"([^"]+)"/)?.[1] ?? '';
+      let lsd = html.match(/\["LSD",\[\],\{"token":"([^"]+)"/)?.[1] ?? html.match(/"lsd"\s*:\s*"([^"]+)"/)?.[1] ?? '';
+      // Current yt-dlp initializes logged-out GraphQL's LSD token from the public
+      // landing page when the redirected post does not provide one.
+      if(!lsd){
+        try{
+          const landing=await fetcher('https://www.instagram.com/',{headers,redirect:'manual'});
+          if(landing.ok){
+            const text=await landing.text();
+            lsd=text.match(/\["LSD",\[\],\{"token":"([^"]+)"/)?.[1]??'';
+            if(!lsd){const eq=text.match(/<script\b[^>]*id="__eqmc"[^>]*>([\s\S]*?)<\/script>/);if(eq){try{const token=JSON.parse(eq[1]).l;if(typeof token==='string')lsd=token;}catch{}}}
+          }
+        }catch{ /* Public-only fallback; no account cookies or login. */ }
+      }
       const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
       let pk = 0n; for (const c of shortcode) pk = pk*64n+BigInt(alphabet.indexOf(c));
       const requests = [
@@ -80,7 +92,7 @@ export class PublicInstagramDownloader {
       ];
       for (const body of requests) {
         try {
-          const r = await fetcher('https://www.instagram.com/api/graphql', {method:'POST', headers: {...headers, 'Content-Type':'application/x-www-form-urlencoded', 'X-FB-LSD':lsd, 'X-FB-Friendly-Name':body.fb_api_req_friendly_name}, body:new URLSearchParams({...body,lsd,fb_api_caller_class:'RelayModern',server_timestamps:'true'}), redirect:'manual'});
+          const r = await fetcher('https://www.instagram.com/api/graphql', {method:'POST', headers: {...headers, 'Content-Type':'application/x-www-form-urlencoded', 'X-FB-LSD':lsd, 'X-FB-Friendly-Name':body.fb_api_req_friendly_name,'X-Requested-With':'XMLHttpRequest'}, body:new URLSearchParams({...body,lsd,fb_api_caller_class:'RelayModern',server_timestamps:'true'}), redirect:'manual'});
           if (r.ok) { const found = extractPublicVideo(await r.json(),shortcode); if (found) return found; }
         } catch { /* Try the next public-only extraction method. */ }
       }

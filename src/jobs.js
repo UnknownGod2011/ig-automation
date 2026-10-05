@@ -66,7 +66,7 @@ export class Reposter {
       else if(job.publish_attempted){await this.store.update(id,{status:'uncertain',error:safeError(error)+' Automatic reposting is blocked to prevent duplicates.',failed_stage:'publishing',poll_after:this.now()+60000,updated_at:this.now()},lease);}
       else if(!job.container_id&&!job.object_key&&job.status==='downloading'&&error.stage==='downloading'&&error.retryable!==false&&job.download_attempts<this.maxDownloadAttempts){
         const delay=[5000,15000,30000,60000][Math.min(job.download_attempts-1,3)];
-        await this.store.update(id,{status:'downloading',error:'Instagram temporarily withheld the video. Retrying automatically ('+job.download_attempts+'/'+this.maxDownloadAttempts+').',poll_after:this.now()+delay,cleanup_pending:0,updated_at:this.now()},lease);
+        await this.store.update(id,{status:'downloading',error:'Download did not complete. Retrying automatically ('+job.download_attempts+'/'+this.maxDownloadAttempts+').',poll_after:this.now()+delay,cleanup_pending:0,updated_at:this.now()},lease);
       }else{
         // Do not discard a transport object while Instagram may still be fetching/processing it.
         let safeToDelete=!job.container_id;
