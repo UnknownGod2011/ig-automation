@@ -1,5 +1,5 @@
 import { AppError } from './errors.js';
-export const CAPTION='FOLLOW FOR MORE!';
+export const CAPTION='FOLLOW FOR MORE FOOTBALL CONTENT!';
 export const API_VERSION='v26.0';
 export function sanitizeMetaMessage(message,env) {
   let s=String(message ?? 'Instagram could not complete this request.');

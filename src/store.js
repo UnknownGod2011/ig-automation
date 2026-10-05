@@ -2,7 +2,7 @@ export class JobStore {
   constructor(db) { this.db=db; }
   async get(id) { return this.db.prepare('SELECT * FROM jobs WHERE id = ?').bind(id).first(); }
   async byShortcode(code) { return this.db.prepare('SELECT * FROM jobs WHERE shortcode = ?').bind(code).first(); }
-  async create(id,normalized,now,caption='FOLLOW FOR MORE!') {
+  async create(id,normalized,now,caption='FOLLOW FOR MORE FOOTBALL CONTENT!') {
     await this.db.prepare('INSERT INTO jobs (id,shortcode,source_url,status,video_token,created_at,updated_at,caption) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING').bind(id,normalized.shortcode,normalized.url,'downloading',crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-',''),now,now,caption).run();
     return this.byShortcode(normalized.shortcode);
   }
