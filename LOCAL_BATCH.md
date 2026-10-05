@@ -1,6 +1,6 @@
 # Controlled local video publishing
 
-`scripts/publish-local-batch.mjs` publishes the ten videos in the explicitly prepared, ignored `artifacts/sh10comps-publish-plan.json` selection. It is not a scheduler and does not automatically publish the rest of a channel.
+`scripts/publish-local-batch.mjs` publishes 1–20 unique videos in an explicitly prepared, ignored JSON selection. The default selection is `artifacts/sh10comps-publish-plan.json`; another plan can be passed as the first argument. Each plan directory has its own publication ledger and `youtube-top10` temporary media directory. It is not a scheduler and does not automatically publish the rest of a channel.
 
 The helper reads the existing ignored credential file without printing credentials. It serves only selected MP4 files from a loopback server through the installed Cloudflare Quick Tunnel. Media URLs use random paths; all other routes return 404. HTTPS verification stays enabled. Newly allocated tunnel names are checked through Cloudflare DNS to avoid Windows negative DNS caching.
 

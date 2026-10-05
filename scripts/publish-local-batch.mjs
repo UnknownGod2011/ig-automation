@@ -50,7 +50,7 @@ async function main(){
   let tunnel,server;
   try{
     const plan=JSON.parse(await readFile(planPath,'utf8'));
-    if(!Array.isArray(plan)||plan.length!==10)throw Error('This controlled test requires exactly ten selected videos.');
+    if(!Array.isArray(plan)||plan.length<1||plan.length>20||new Set(plan.map(item=>item.youtubeId)).size!==plan.length)throw Error('A controlled batch requires 1–20 unique selected videos.');
     let ledger={};try{ledger=JSON.parse(await readFile(ledgerPath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
     const save=async()=>{await writeFile(ledgerPath+'.tmp',JSON.stringify(ledger,null,2));await rename(ledgerPath+'.tmp',ledgerPath);};
     const env={},raw=await readFile(resolve('ig-secrets.txt'),'utf8');
