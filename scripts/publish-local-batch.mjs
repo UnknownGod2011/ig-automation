@@ -10,13 +10,22 @@ import {MetaClient,validId} from '../src/meta.js';
 
 // Windows' default resolver can negatively cache newly allocated tunnel names.
 // Resolve this public transport through Cloudflare DNS, preserving hostname/TLS checks.
-async function transportHead(url){
+async function transportHeadOnce(url){
   const resolver=new Resolver();resolver.setServers(['1.1.1.1']);
   return new Promise((resolve,reject)=>{
     const req=httpsRequest(url,{method:'HEAD',lookup:(host,options,callback)=>resolver.resolve4(host).then(a=>options.all?callback(null,a.map(address=>({address,family:4}))):callback(null,a[0],4),callback)},res=>{
       res.resume();resolve({status:res.statusCode,ok:res.statusCode>=200&&res.statusCode<300,headers:new Headers(res.headers)});
     });req.setTimeout(15000,()=>req.destroy(Error('Transport timeout')));req.on('error',reject);req.end();
   });
+}
+export async function transportHead(url,head=transportHeadOnce,pause=ms=>new Promise(r=>setTimeout(r,ms))){
+  let error;
+  for(let attempt=0;attempt<3;attempt++){
+    try{const response=await head(url);if(response.status!==502&&response.status!==503)return response;error=Error('Temporary transport is starting.');}
+    catch(e){error=e;}
+    if(attempt<2)await pause(2000*(attempt+1));
+  }
+  throw error;
 }
 
 // A local, explicitly invoked batch. No scheduled posts or credential-bearing URLs.

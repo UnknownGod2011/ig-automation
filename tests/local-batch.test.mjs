@@ -4,7 +4,13 @@ import {createServer} from 'node:http';
 import {mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {publishOnce,videoHandler} from '../scripts/publish-local-batch.mjs';
+import {publishOnce,videoHandler,transportHead} from '../scripts/publish-local-batch.mjs';
+test('transport recovers from transient DNS and gateway failure with bounded pre-publication retries',async()=>{
+  let calls=0;const delays=[];
+  const result=await transportHead('https://example.test',async()=>{calls++;if(calls===1)throw Error('DNS unavailable');return {status:calls===2?502:200};},async ms=>delays.push(ms));
+  assert.equal(result.status,200);assert.equal(calls,3);assert.deepEqual(delays,[2000,4000]);
+  calls=0;await assert.rejects(()=>transportHead('https://example.test',async()=>{calls++;throw Error('DNS unavailable');},async()=>{}));assert.equal(calls,3);
+});
 test('local publisher saves write-ahead claim and never resends an ambiguous publication',async()=>{
   const job={containerId:'12345678'};let calls=0;
   const meta={publish:async()=>{calls++;throw Error('lost response');}};
