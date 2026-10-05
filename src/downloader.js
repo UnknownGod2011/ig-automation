@@ -38,7 +38,7 @@ export class PublicInstagramDownloader {
     };
     for(let attempt=0;attempt<2;attempt++){
       if(attempt){if(deadline-this.now()<=1500)break;await this.sleep(1500);}
-      try{return await this.downloadOnce(url,fetcher);}catch{if(this.now()>=deadline)break;}
+      try{return await this.downloadOnce(url,fetcher);}catch(error){if(error.retryable===false)throw error;if(this.now()>=deadline)break;}
     }
     // Only fixed method names and HTTP status codes; no URLs, response bodies or credentials.
     console.warn(JSON.stringify({event:'public_download_unavailable',requests:observations}));
@@ -56,9 +56,9 @@ export class PublicInstagramDownloader {
         if(embed.ok){
           const text=await embed.text();
           const context=text.match(/"contextJSON":("(?:\\.|[^"\\])*")/);
-          if(context){const data=JSON.parse(JSON.parse(context[1]));if(data.context?.shortcode===shortcode&&!data.context?.copyright_blocked){const found=extractPublicVideo(data,shortcode);if(found)return found;}}
+          if(context){const data=JSON.parse(JSON.parse(context[1]));if(data.context?.shortcode===shortcode){if(data.context?.copyright_blocked){const error=new AppError('Instagram blocks this video’s public download for copyright reasons. Try another Reel.','downloading',422);error.retryable=false;throw error;}const found=extractPublicVideo(data,shortcode);if(found)return found;}}
         }
-      }catch{ /* Fall back to public page metadata, never a login or cookies. */ }
+      }catch(error){if(error.retryable===false)throw error; /* Fall back to public page metadata, never a login or cookies. */ }
       const response = await fetcher(target, { headers, redirect: 'manual' });
       if (response.ok) html = await response.text();
       // Embedded public metadata is preferable to an additional API call.
@@ -84,7 +84,7 @@ export class PublicInstagramDownloader {
           if (r.ok) { const found = extractPublicVideo(await r.json(),shortcode); if (found) return found; }
         } catch { /* Try the next public-only extraction method. */ }
       }
-    } catch { /* Upstream details are deliberately not exposed. */ }
+    } catch(error) {if(error.retryable===false)throw error; /* Upstream details are deliberately not exposed. */ }
     throw failure();
   }
 }

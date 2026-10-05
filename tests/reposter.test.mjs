@@ -49,3 +49,19 @@ test('token exchange persists encrypted token and refreshes securely near expiry
 test('already long-lived token is verified with official refresh after exchange rejection',async()=>{await db.prepare('DELETE FROM token_state').run();const f=fixture();const calls=[];const fetcher=async u=>{const url=new URL(u);calls.push(url.pathname);return calls.length===1?Response.json({error:{code:452}},{status:400}):Response.json({access_token:'existing-long-lived',expires_in:5184000});};assert.equal(await getAccessToken(f.env,fetcher,Date.now()),'existing-long-lived');assert.deepEqual(calls,['/access_token','/refresh_access_token']);const row=await db.prepare('SELECT * FROM token_state').first();assert.ok(!JSON.stringify(row).includes('existing-long-lived'));});
 test('invalid initial token is rejected if both lifecycle endpoints fail',async()=>{await db.prepare('DELETE FROM token_state').run();const f=fixture();const fetcher=async()=>Response.json({error:{code:452}},{status:400});await assert.rejects(()=>getAccessToken(f.env,fetcher,Date.now()));assert.equal(await db.prepare('SELECT * FROM token_state').first(),null);});
 test('transport exposes no UI, administration, or arbitrary upstream URLs',async()=>{for(const path of['/','/api/jobs','/video/http://internal/a','/video/bad/token/source.mp4'])assert.equal((await relay.fetch(new Request('https://relay.example'+path),{})).status,404);assert.equal((await relay.fetch(new Request('https://relay.example/video/'+crypto.randomUUID()+'/'+'a'.repeat(64)+'/source.mp4',{method:'POST'}),{})).status,404);});
+
+test('copyright-blocked public embed fails permanently without extraction retries',async()=>{
+  let calls=0,sleeps=0;
+  const data={context:{shortcode:'Abc123',copyright_blocked:true},gql_data:{shortcode_media:{is_video:true,video_url:'https://scontent.cdninstagram.com/a.mp4'}}};
+  const d=new PublicInstagramDownloader(async()=>{calls++;return new Response('"contextJSON":'+JSON.stringify(JSON.stringify(data)));},{sleep:async()=>{sleeps++;}});
+  await assert.rejects(()=>d.download('https://instagram.com/reel/Abc123/?utm_source=copy'),e=>e.retryable===false&&/copyright/.test(e.message));
+  assert.equal(calls,1);assert.equal(sleeps,0);
+});
+test('permanent downloader restriction stops automatic and manual retry without creating media',async()=>{
+  const f=fixture({maxDownloadAttempts:5});let calls=0;
+  f.app.downloader={download:async()=>{calls++;const e=new AppError('Copyright restriction','downloading',422);e.retryable=false;throw e;}};
+  await f.app.create(f.id,`https://instagram.com/reel/${f.code}/`);
+  const j=await f.app.advance(f.id);assert.equal(j.status,'failed');assert.equal(j.failedStage,'copyright');assert.equal(j.retrySafe,false);
+  f.tick();await f.app.advance(f.id);await assert.rejects(()=>f.app.retry(f.id));
+  assert.equal(calls,1);assert.equal(f.counts.create,0);assert.equal(f.counts.publish,0);assert.equal(j.cleanupPending,false);
+});

@@ -27,5 +27,5 @@ export class JobStore {
 }
 export function publicJob(job) {
   if(!job) return null;
-  return {id:job.id,status:job.status,error:job.error,failedStage:job.failed_stage,mediaId:job.media_id,cleanupPending:!!job.cleanup_pending,retrySafe:job.status==='failed' && !job.publish_attempted && !job.container_id,sourceUrl:job.source_url};
+  return {id:job.id,status:job.status,error:job.error,failedStage:job.failed_stage,mediaId:job.media_id,cleanupPending:!!job.cleanup_pending,retrySafe:job.status==='failed' && job.failed_stage!=='copyright' && !job.publish_attempted && !job.container_id,sourceUrl:job.source_url};
 }
