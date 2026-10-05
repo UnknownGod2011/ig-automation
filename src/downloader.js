@@ -56,7 +56,7 @@ export class PublicInstagramDownloader {
         if(embed.ok){
           const text=await embed.text();
           const context=text.match(/"contextJSON":("(?:\\.|[^"\\])*")/);
-          if(context){const data=JSON.parse(JSON.parse(context[1]));if(data.context?.shortcode===shortcode){if(data.context?.copyright_blocked){const error=new AppError('Instagram blocks this video’s public download for copyright reasons. Try another Reel.','downloading',422);error.retryable=false;throw error;}const found=extractPublicVideo(data,shortcode);if(found)return found;}}
+          if(context){const data=JSON.parse(JSON.parse(context[1]));if(data.context?.shortcode===shortcode){if(data.context?.copyright_blocked){const error=new AppError('Instagram blocks public download of this video for copyright reasons. Try another Reel.','downloading',422);error.retryable=false;throw error;}const found=extractPublicVideo(data,shortcode);if(found)return found;}}
         }
       }catch(error){if(error.retryable===false)throw error; /* Fall back to public page metadata, never a login or cookies. */ }
       const response = await fetcher(target, { headers, redirect: 'manual' });
